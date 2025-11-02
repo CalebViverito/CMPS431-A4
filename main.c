@@ -14,6 +14,8 @@ pthread_mutex_t all = PTHREAD_MUTEX_INITIALIZER;
 int incompleteJobs = 0;
 int bumpedJobs = 0;
 struct timespec Start;
+const char *jobTypes[] = {"OUT", "IN"};
+
 
 double get_ms() {
     // func keeps track of ms elapsed
@@ -29,22 +31,22 @@ void updateStock(JobQueue *jQueue, JobNode *j) {
     }
     pthread_mutex_lock(&stockLock[j->stockId]);
     // add to stock
-    if (j->type == INPUT) {
+    if (j->type == IN) {
         pthread_mutex_lock(&all);
-        printf("job %.2d BEFORE | stock quantity %i - input val %i\n", j->jid, stock[j->stockId], j->value);
+        printf("job %.2d BEFORE | stock %c (%i) + %i\n", j->jid, ('A' + j->stockId), stock[j->stockId], j->value);
         pthread_mutex_unlock(&all);
         
         stock[j->stockId] = stock[j->stockId] + j->value;
         
         pthread_mutex_lock(&all);
-        printf("job %.2d AFTER  | stock quantity %i - input val %i\n\n", j->jid, stock[j->stockId], j->value);
+        printf("job %.2d AFTER  | stock %c (%i)\n%15c\n", j->jid, ('A' + j->stockId), stock[j->stockId], '|');
         pthread_mutex_unlock(&all);
     }
     else {
         // can't remove, stock goes negative
         if((stock[j->stockId] - j->value) < 0) {
             pthread_mutex_lock(&all);
-            printf("job %.2d        | bumped for insufficient stock\n\n", j->jid);
+            printf("job %.2d %-7s| BUMPED (INSUFFICIENT STOCK) stock %c (%i) - %i\n%15c\n", j->jid, jobTypes[j->type], ('A' + j->stockId), stock[j->stockId], j->value, '|');
             if (j->bumps == 0) {
                 bumpedJobs++;
             }
@@ -56,13 +58,13 @@ void updateStock(JobQueue *jQueue, JobNode *j) {
         }
         // remove from stock
         pthread_mutex_lock(&all);
-        printf("job %.2d BEFORE | stock quantity %i - output value %i\n", j->jid, stock[j->stockId], j->value);
+        printf("job %.2d BEFORE | stock %c (%i) - %i\n", j->jid, ('A' + j->stockId), stock[j->stockId], j->value);
         pthread_mutex_unlock(&all);
         
         stock[j->stockId] = stock[j->stockId] - j->value;
         
         pthread_mutex_lock(&all);
-        printf("job %.2d AFTER  | stock quantity %i - output value %i\n\n", j->jid, stock[j->stockId], j->value);
+        printf("job %.2d AFTER  | stock %c (%i)\n%15c\n", j->jid, ('A' + j->stockId), stock[j->stockId], '|');
         pthread_mutex_unlock(&all);
         
     }
@@ -85,14 +87,14 @@ void *takeJob(void *arg) {
             break;
         }
         if (j->bumps > 2) {
-            printf("job %.2d        | cancelled due to lack of progress\n\n", j->jid);
+            printf("job %.2d %-7s| CANCELLED (LACK OF PROGRESS)\n\n", j->jid, jobTypes[j->type]);
             incompleteJobs++;
             pthread_mutex_unlock(&all);
             continue;
         }
         else {
             j->workerId = pthread_self();
-            printf("job %.2d        | taken by worker %i\n", j->jid, j->workerId);
+            printf("job %.2d %-7s| taken by worker %i\n", j->jid, jobTypes[j->type], j->workerId);
             pthread_mutex_unlock(&all);
         }
         updateStock(jQueue, j);
@@ -108,7 +110,7 @@ int main() {
     JobQueue_init(&jQueue);
     int stockId[] = {0, 3, 1, 2, 3, 5, 4, 0, 1, 5, 2, 4, 0, 3, 0};
     int value[] = {5, 3, 10, 3, 8, 10, 4, 3, 8, 5, 6, 5, 12, 5, 8};
-    Type type[] = {OUTPUT, OUTPUT, OUTPUT, INPUT, INPUT, OUTPUT, INPUT, INPUT, INPUT, OUTPUT, INPUT, INPUT, OUTPUT, INPUT, INPUT};
+    Type type[] = {OUT, OUT, OUT, IN, IN, OUT, IN, IN, IN, OUT, IN, IN, OUT, IN, IN};
     int jid = 0;
     
     for (int i = 0; i < 6; i++) {
@@ -139,8 +141,8 @@ int main() {
     for (int i = 0; i < 6; i++) {
         printf("| %c | %.2d |\n", id++, stock[i]);
     }
-    printf("Number of operations bumped for insufficient stock: %i\n", bumpedJobs);
-    printf("Number of operations cancelled for lack of stock: %i\n", incompleteJobs);
+    printf("Jobs bumped for insufficient stock: %i\n", bumpedJobs);
+    printf("Jobs cancelled for lack of stock: %i\n", incompleteJobs);
     printf("Total time elapsed: %.5f ms\n", endTime);
     printf("Average completion time: %.5f ms", (endTime / 6));
     

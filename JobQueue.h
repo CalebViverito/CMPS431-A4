@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-typedef enum {OUTPUT, INPUT} Type;
+typedef enum {OUT, IN} Type;
 
 typedef struct JobNode{
     int jid;
